@@ -165,4 +165,7 @@ pyobjc-framework-VideoToolbox==12.1
 pyobjc-framework-Virtualization==12.1
 pyobjc-framework-Vision==12.1
 pyobjc-framework-WebKit==12.1
+PyQt6==6.10.1
+PyQt6-Qt6==6.10.1
+PyQt6_sip==13.10.3
 six==1.17.0

@@ -1,5 +1,17 @@
 from utils import *
 import time
+import os
+import json
+import sys
+from PyQt6.QtWidgets import (
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QFileDialog,
+)
 
 class chem_draw_worker(worker):
     def __init__(self):
@@ -41,23 +53,73 @@ def wait_until_space_up():
     """
     while not is_space_pressed():
         time.sleep(0.01)
-        
 
-if __name__=="__main__":
-    wait_until_space_up()
-    # smiles = "CC1=C2C(C(=O)C3(C(CC4C(C3C(C(C2(C)C)(CC1OC(=O)C5=CC=CC=C5)O)OC(=O)C6=CC=CC=C6)(CO4)OC(=O)C)O)C)OC(=O)C7=CC=CC=C7"
-    cdw = chem_draw_worker()
-    smiles_List = [
-        "CC1=C2C(C(=O)C3(C(CC4C(C3C(C(C2(C)C)(CC1OC(=O)C5=CC=CC=C5)O)OC(=O)C6=CC=CC=C6)(CO4)OC(=O)C)O)C)OC(=O)C7=CC=CC=C7",
-        "CC1=C2C(C(=O)C3(C(CC4C(C3C(C(C2(C)C)(CC1OC(=O)C5=CC=CC=C5)O)OC(=O)C6=CC=CC=C6)(CO4)OC(=O)C)O)C)OC(=O)C7=CC=CC=C7",
-    ]
-    data = []
-    for smiles in smiles_List:
-        data.append({
-            "smiles": smiles,
-            "iupac_name": cdw.draw_chem(smiles)
-        })
-    import json
-    with open("data.json", "w") as f:
-        json.dump(data, f, indent=4)
-    
+class App(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Auto IU2 SM")
+        self.resize(360, 180)
+
+        self.smiles_file = ""
+
+        layout = QVBoxLayout()
+        self.prompt = QLabel("请输入 smiles 文件路径。按下提交后切换回 ChemDraw，创建空白文档并按空格开始。")
+        self.input = QLineEdit()
+        self.browse_btn = QPushButton("浏览...")
+        self.submit_button = QPushButton("提交")
+        layout.addWidget(self.prompt)
+        layout.addWidget(self.input)
+        layout.addWidget(self.browse_btn)
+        layout.addWidget(self.submit_button)
+        self.setLayout(layout)
+
+        self.browse_btn.clicked.connect(self.browse_file)
+        self.submit_button.clicked.connect(self.submit)
+
+    def browse_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择 smiles 文件", "", "Text Files (*.txt);;All Files (*)")
+        if file_path:
+            self.input.setText(file_path)
+
+    def submit(self):
+        self.smiles_file = self.input.text().strip()
+        if not self.smiles_file:
+            self.prompt.setText(f"请输入 smiles 文件路径。按下submit后切换回 ChemDraw，创建空白文档并按空格开始，结果将写入 {self.smiles_file}.json")
+            return
+        if not os.path.exists(self.smiles_file):
+            self.prompt.setText(f"文件不存在: {self.smiles_file}")
+            return
+
+        # self.prompt.setText(
+        #     f"请切换回 ChemDraw，空白文档按空格开始，结果将写入 {self.smiles_file}.json"
+        # )
+
+        try:
+            self.run_pipeline(self.smiles_file)
+            self.prompt.setText(f"结果已保存至 {self.smiles_file}.json")
+        except Exception as exc:
+            self.prompt.setText(f"出错: {exc}")
+
+    def run_pipeline(self, smiles_file):
+        wait_until_space_up()
+        cdw = chem_draw_worker()
+        with open(smiles_file, "r") as f:
+            smiles_list = [line.strip() for line in f if line.strip()]
+
+        data = []
+        for smiles in smiles_list:
+            data.append({
+                "smiles": smiles,
+                "iupac_name": cdw.draw_chem(smiles)
+            })
+
+        output_path = f"{smiles_file}.json"
+        with open(output_path, "w") as f:
+            json.dump(data, f, indent=4)
+
+
+if __name__ == "__main__":
+    qt_app = QApplication(sys.argv)
+    window = App()
+    window.show()
+    sys.exit(qt_app.exec())
