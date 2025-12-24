@@ -149,7 +149,7 @@ class worker:
             bytes_per_row,
             1,
         )
-        img.save(f"screenshot_main_{label}_{int(time.time()*1000)}.png")
+        # img.save(f"screenshot_main_{label}_{int(time.time()*1000)}.png")
         gray = img.convert("L")  # Convert to grayscale
         return np.array(gray)
 
@@ -264,7 +264,7 @@ class worker:
             CGEventPost(kCGHIDEventTap, evt)
 
         # After clicking, capture full screenshot and draw a red 100x100 box at the click center.
-        self._save_full_screenshot_with_marker(x, y, size=100)
+        # self._save_full_screenshot_with_marker(x, y, size=100)
 
     def _capture_region_centered(self, x: int, y: int, size: int = 100, path: str | None = None) -> str:
         """
@@ -312,7 +312,7 @@ class worker:
 
         if path is None:
             path = f"click_region_{int(time.time()*1000)}.png"
-        img.save(path)
+        # img.save(path)
         return path
 
     def _save_full_screenshot_with_marker(self, x: int, y: int, size: int = 100, path: str | None = None) -> str:
@@ -350,7 +350,7 @@ class worker:
 
         if path is None:
             path = f"click_full_{int(time.time()*1000)}.png"
-        img.save(path)
+        # img.save(path)
         return path
 
 
@@ -373,7 +373,7 @@ class worker:
         crop = Image.fromarray(gray).crop((left, top, right, bottom)).convert("RGB")
         if path is None:
             path = f"iupac_block_{int(time.time()*1000)}.png"
-        crop.save(path)
+        # crop.save(path)
         return bbox, path
 
 
