@@ -28,17 +28,40 @@ class chem_draw_worker(worker):
         self.p_img = self.capture_main_display_gray("beforepaste")
         # print(self.get_clipboard_text())
         self.press_keys(self.pasteKey)
-        time.sleep(0.01)
+        time.sleep(1)
         self.pre_img = self.capture_main_display_gray("afterpaste")
         self.press_keys(self.startKey)
         time.sleep(1)
         self.post_img = self.capture_main_display_gray("afterstart")
-        self.find_max_diff_center(self.pre_img, self.post_img)
-        self.move_and_click(self.max_diff_center_x, self.max_diff_center_y)
-        # self.move_and_click(self.max_diff_center_x, self.max_diff_center_y)
-        self.press_keys(self.copyKey)
-        time.sleep(0.5)
-        iupac_name = self.get_clipboard_text()
+        points = self.find_max_diff_centers(self.pre_img, self.post_img)
+        
+        iupac_name = ""
+        for point in points:
+            self.move_and_click(point[0], point[1])
+            # self.move_and_click(self.max_diff_center_x, self.max_diff_center_y)
+            time.sleep(0.5)
+            self.press_keys(self.copyKey)
+            time.sleep(0.01)
+            iupac_name = self.get_clipboard_text()
+            if iupac_name != smiles:
+                break
+            self.move_and_click(point[0], point[1]-10)
+            # self.move_and_click(self.max_diff_center_x, self.max_diff_center_y)
+            time.sleep(0.5)
+            self.press_keys(self.copyKey)
+            time.sleep(0.01)
+            iupac_name = self.get_clipboard_text()
+            if iupac_name != smiles:
+                break
+            self.move_and_click(point[0], point[1]+10)
+            # self.move_and_click(self.max_diff_center_x, self.max_diff_center_y)
+            time.sleep(0.5)
+            self.press_keys(self.copyKey)
+            time.sleep(0.01)
+            iupac_name = self.get_clipboard_text()
+            if iupac_name != smiles:
+                break
+        
         self.press_keys(["command", "a"])
         self.press_keys(["backspace"])
         return iupac_name

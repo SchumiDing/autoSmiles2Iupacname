@@ -154,10 +154,17 @@ class worker:
         return np.array(gray)
 
 
-    def find_max_diff_center(self, mat_a: np.ndarray, mat_b: np.ndarray, window: int = 99) -> Tuple[int, int]:
+    def find_max_diff_centers(
+        self,
+        mat_a: np.ndarray,
+        mat_b: np.ndarray,
+        window: int = 99,
+        top_k: int = 20,
+        min_dist: int = 99,  # minimal allowed block distance between centers, default to window size
+    ) -> list[Tuple[int, int]]:
         """
         在 mat_a 中寻找接近全白且在 mat_b 中新增大量黑色文字的窗口中心（x, y）。
-        默认返回窗口中心坐标（x, y）。
+        返回分数前 top_k 的点，这些点至少相隔 min_dist。
         """
         if mat_a.shape != mat_b.shape:
             raise ValueError("Input matrices must have the same shape.")
@@ -166,7 +173,6 @@ class worker:
         if mat_a.shape[0] < window or mat_a.shape[1] < window:
             raise ValueError("Window size is larger than the provided matrices.")
 
-        # Tunables: what counts as "almost white" in A and "black text" in B.
         white_threshold = 245  # higher = closer to pure white
         black_threshold = 60   # lower = darker pixels considered text
 
@@ -185,7 +191,6 @@ class worker:
                 + integral[:-w, :-w]
             )
 
-        # Mean brightness in A (higher -> whiter).
         integral_a = integral_image(mat_a.astype(np.int64))
         mean_a = window_sums(integral_a) / float(area)
 
@@ -194,12 +199,10 @@ class worker:
         integral_dark = integral_image(dark_mask_b)
         dark_count = window_sums(integral_dark)
 
-        # Score: only consider windows where A is near white; prefer more dark pixels in B.
         whiteness = np.clip((mean_a - white_threshold) / (255 - white_threshold), 0.0, 1.0)
         density = dark_count / float(area)
         score = whiteness * density
 
-        # Restrict search to central 20%~80% region to avoid edges.
         h_ws, w_ws = score.shape
         y0 = max(0, int(h_ws * 0.2))
         y1 = max(y0 + 1, int(h_ws * 0.8))
@@ -210,14 +213,33 @@ class worker:
         if roi.size == 0:
             raise ValueError("ROI for max search is empty.")
 
-        local_idx = np.unravel_index(np.argmax(roi), roi.shape)
-        top = y0 + local_idx[0]
-        left = x0 + local_idx[1]
-        center_y = top + window // 2
-        center_x = left + window // 2
-        self.max_diff_center_x = int(center_x)
-        self.max_diff_center_y = int(center_y)
-        return int(center_x), int(center_y)
+        flat_indices = np.argsort(roi.ravel())[::-1]  # Descending
+        roi_coords = np.array(np.unravel_index(flat_indices, roi.shape)).T  # (N, 2) [row(y),col(x)]
+        selected_centers = []
+
+        def is_far_enough(new_y, new_x, picked):
+            for prev_y, prev_x in picked:
+                if np.hypot(prev_y - new_y, prev_x - new_x) < min_dist:
+                    return False
+            return True
+
+        for idx in roi_coords:
+            top = y0 + idx[0]
+            left = x0 + idx[1]
+            center_y = top + window // 2
+            center_x = left + window // 2
+            # Check distance with previously picked centers
+            if is_far_enough(center_y, center_x, selected_centers):
+                selected_centers.append((int(center_x), int(center_y)))
+                if len(selected_centers) >= top_k:
+                    break
+
+        # For compatibility, also set the .max_diff_center_x/.y to the first
+        if selected_centers:
+            self.max_diff_center_x = selected_centers[0][0]
+            self.max_diff_center_y = selected_centers[0][1]
+
+        return selected_centers
     
     def get_greatest_diff_value(self, mat_a: np.ndarray, mat_b: np.ndarray) -> int:
         """
