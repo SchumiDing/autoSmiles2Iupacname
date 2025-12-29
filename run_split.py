@@ -1,4 +1,4 @@
-from utils import *
+from run import *
 import time
 import os
 import json
@@ -13,60 +13,62 @@ from PyQt6.QtWidgets import (
     QFileDialog,
 )
 
-class chem_draw_worker(worker):
+class chem_draw_worker_split(chem_draw_worker):
     def __init__(self):
         super().__init__()
         self.p_img = None
         self.pre_img = None
         self.post_img = None
         self.cap = 5
-    def draw_chem(self, smiles: str) -> None:
+        self.inert_gases = {
+            "He": ["Helium",
+                   "helium",
+                   "Helio",
+                   "helio"],
+            "Ne": ["Neon",
+                   "neon",
+                   "Neio",
+                   "neio"],
+            "Ar": ["Argon",
+                   "argon",
+                   "Argio",
+                   "argio"],
+            "Kr": ["Krypton",
+                   "krypton",
+                   "Kryptio",
+                   "kryptio"],
+            "Xe": ["Xenon",
+                   "xenon",
+                   "Xenio",
+                   "xenio"],
+            "Rn": ["Radon",
+                   "radon",
+                   "Radonio",
+                   "radonio"],
+        }
+        self.placeholder = "[Chemical_bond]"
+    
+    def find_inert_gas(self, smiles: str) -> str:
+        for gas, names in self.inert_gases.items():
+            if gas not in smiles and gas.lower() not in smiles.lower():
+                return gas
+        # impossible to have all inert gases in the same molecule
+        
+    def draw_chem_split(self, org_smiles: str) -> None:
         """
         Draw the given chemical formula.
         """
-        self.write_to_clipboard(smiles)
-        self.p_img = self.capture_main_display_gray("beforepaste")
-        # print(self.get_clipboard_text())
-        self.press_keys(self.pasteKey)
-        time.sleep(1)
-        self.pre_img = self.capture_main_display_gray("afterpaste")
-        self.press_keys(self.startKey)
-        time.sleep(1)
-        self.post_img = self.capture_main_display_gray("afterstart")
-        points = self.find_max_diff_centers(self.pre_img, self.post_img)
+        inert_gas = self.find_inert_gas(org_smiles)
         
-        iupac_name = ""
-        for point in points:
-            self.move_and_click(point[0], point[1])
-            # self.move_and_click(self.max_diff_center_x, self.max_diff_center_y)
-            time.sleep(0.5)
-            self.press_keys(self.copyKey)
-            time.sleep(0.01)
-            iupac_name = self.get_clipboard_text()
-            if iupac_name != smiles:
-                break
-            self.move_and_click(point[0], point[1]-20)
-            # self.move_and_click(self.max_diff_center_x, self.max_diff_center_y)
-            time.sleep(0.5)
-            self.press_keys(self.copyKey)
-            time.sleep(0.01)
-            iupac_name = self.get_clipboard_text()
-            if iupac_name != smiles:
-                break
-            self.move_and_click(point[0], point[1]+20)
-            # self.move_and_click(self.max_diff_center_x, self.max_diff_center_y)
-            time.sleep(0.5)
-            self.press_keys(self.copyKey)
-            time.sleep(0.01)
-            iupac_name = self.get_clipboard_text()
-            if iupac_name != smiles:
-                break
+        new_smiles = org_smiles.replace("*", f"[{inert_gas}]")
         
-        self.press_keys(["command", "a"])
-        self.press_keys(["backspace"])
+        iupac_name = self.draw_chem(new_smiles)
+        
+        for possible_name in self.inert_gases[inert_gas]:
+            iupac_name = iupac_name.replace(possible_name, self.placeholder)
+        
         return iupac_name
-
-
+        
 
 
 def wait_until_space_up():
@@ -86,7 +88,7 @@ class App(QWidget):
         self.smiles_file = ""
 
         layout = QVBoxLayout()
-        self.prompt = QLabel("请输入 smiles 文件路径。按下提交后切换回 ChemDraw，创建空白文档并按空格开始。")
+        self.prompt = QLabel("请输入包含断键的 smiles 文件路径。按下提交后切换回 ChemDraw，创建空白文档并按空格开始。")
         self.input = QLineEdit()
         self.browse_btn = QPushButton("浏览...")
         self.submit_button = QPushButton("提交")
@@ -125,7 +127,7 @@ class App(QWidget):
 
     def run_pipeline(self, smiles_file):
         wait_until_space_up()
-        cdw = chem_draw_worker()
+        cdw = chem_draw_worker_split()
         with open(smiles_file, "r") as f:
             smiles_list = [line.strip() for line in f if line.strip()]
 
@@ -133,7 +135,7 @@ class App(QWidget):
         for smiles in smiles_list:
             data.append({
                 "smiles": smiles,
-                "iupac_name": cdw.draw_chem(smiles)
+                "iupac_name": cdw.draw_chem_split(smiles)
             })
 
         output_path = f"{smiles_file}.json"
